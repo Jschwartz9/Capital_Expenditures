@@ -1,0 +1,9 @@
+Vercel · JSON
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/capital_expenditures.html"
+    }
+  ]
+}
