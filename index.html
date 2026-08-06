@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Capital Expenditures Tracker</title>
+<style>
+  :root {
+    --spent-color: #2e7d32;
+    --planned-color: #b7660a;
+    --border: #dcdcd8;
+    --bg: #f5f5f3;
+    --header-bg: #eceae4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    background: var(--bg);
+    margin: 0;
+    padding: 28px 32px;
+    color: #1f1f1f;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 24px; letter-spacing: -.01em; }
+  .subtitle { color: #666; margin-bottom: 20px; font-size: 13px; }
+ 
+  .summary {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 22px;
+    min-width: 170px;
+  }
+  .card .label { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: .05em; }
+  .card .value { font-size: 23px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .card.spent .value { color: var(--spent-color); }
+  .card.planned .value { color: var(--planned-color); }
+  .card.total .value { color: #1f1f1f; }
+ 
+  .warning-banner {
+    display: none;
+    background: #fff4e0;
+    border: 1px solid #f0c778;
+    color: #7a4e00;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    margin-bottom: 16px;
+  }
+  .warning-banner.show { display: block; }
+ 
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  button {
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: #fff;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  button:hover { background: #f0f0ee; }
+  button.primary { background: #1f5c9e; color: #fff; border-color: #1f5c9e; font-weight: 600; }
+  button.primary:hover { background: #1a4c83; }
+  button.secondary { color: #333; }
+ 
+  .saved-status {
+    font-size: 12px;
+    color: #666;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  .saved-status .dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #2e7d32;
+    margin-right: 5px;
+  }
+ 
+  table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  colgroup col.col-item   { width: 23%; }
+  colgroup col.col-status { width: 11%; }
+  colgroup col.col-cost   { width: 13%; }
+  colgroup col.col-qty    { width: 8%; }
+  colgroup col.col-total  { width: 13%; }
+  colgroup col.col-notes  { width: 28%; }
+  colgroup col.col-del    { width: 4%; }
+ 
+  th, td {
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+    vertical-align: middle;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  th {
+    background: var(--header-bg);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: #555;
+    text-align: left;
+  }
+  th.align-right, td.align-right { text-align: right; }
+  th.align-center, td.align-center { text-align: center; }
+ 
+  td.editable {
+    outline: none;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  td.editable:focus, span.editable:focus {
+    background: #fffbe0;
+    outline: 1px solid #f0d878;
+    border-radius: 3px;
+  }
+ 
+  td.cost-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.cost-cell .currency-prefix { color: #777; margin-right: 1px; }
+  td.cost-cell span.editable { display: inline-block; min-width: 20px; outline: none; }
+ 
+  td.qty-cell { font-variant-numeric: tabular-nums; }
+  td.total-cell { font-weight: 600; font-variant-numeric: tabular-nums; }
+  td.total-cell .tbd-badge {
+    color: var(--planned-color);
+    font-weight: 600;
+    font-style: italic;
+    font-size: 12px;
+  }
+  td.total-cell .tbd-toggle-btn {
+    display: block;
+    border: none;
+    background: none;
+    color: #999;
+    font-size: 10px;
+    font-weight: 400;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 2px 0 0 0;
+    margin: 0;
+    font-family: inherit;
+  }
+  td.total-cell .tbd-toggle-btn:hover { color: #555; }
+ 
+  tr.row-spent   { background: #fafcf9; }
+  tr.row-planned { background: #fffdf8; }
+  tr:hover { background: #f5f7fb; }
+ 
+  .del-btn {
+    border: none;
+    background: none;
+    color: #b3261e;
+    font-size: 17px;
+    cursor: pointer;
+    padding: 2px 6px;
+    line-height: 1;
+    border-radius: 4px;
+  }
+  .del-btn:hover { background: #fdeceb; }
+ 
+  select.status-select {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 12px;
+    background: #fff;
+    width: 100%;
+  }
+  select.status-select.spent { color: var(--spent-color); font-weight: 600; }
+  select.status-select.planned { color: var(--planned-color); font-weight: 600; }
+ 
+  tfoot td {
+    font-weight: 700;
+    border-bottom: none;
+    border-top: 2px solid #c9c9c3;
+    background: #f8f8f6;
+    font-size: 13.5px;
+  }
+ 
+  .footer-note {
+    margin-top: 14px;
+    font-size: 12px;
+    color: #888;
+    line-height: 1.5;
+  }
+ 
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #1f1f1f;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s, transform .25s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+ 
+  @media print {
+    .toolbar, .del-btn, .toast, .saved-status { display: none !important; }
+    body { background: #fff; padding: 0; }
+    tr.row-spent, tr.row-planned { background: #fff !important; }
+  }
+</style>
+</head>
+<body>
+ 
+<h1>Capital Expenditures</h1>
+<div class="subtitle" id="lastSavedLine">Not saved yet</div>
+ 
+<div class="summary">
+  <div class="card spent">
+    <div class="label">Total Spent</div>
+    <div class="value" id="totalSpent">$0.00</div>
+  </div>
+  <div class="card planned">
+    <div class="label">Total Planned</div>
+    <div class="value" id="totalPlanned">$0.00</div>
+  </div>
+  <div class="card total">
+    <div class="label">Grand Total</div>
+    <div class="value" id="totalAll">$0.00</div>
+  </div>
+</div>
+ 
+<div class="warning-banner" id="tbdWarning"></div>
+ 
+<div class="toolbar">
+  <button class="primary" id="saveBtn">💾 Save</button>
+  <button class="secondary" id="addRowBtn">+ Add Item</button>
+  <button class="secondary" id="exportCsvBtn">Export CSV</button>
+  <button class="secondary" id="exportJsonBtn">Export Backup (JSON)</button>
+  <button class="secondary" id="importJsonBtn">Import Backup</button>
+  <input type="file" id="importFile" accept=".json" style="display:none">
+  <button class="secondary" id="printBtn">Print / Save PDF</button>
+  <span class="saved-status" id="savedStatus"><span class="dot"></span>All changes saved</span>
+</div>
+ 
+<table id="capexTable">
+  <colgroup>
+    <col class="col-item"><col class="col-status"><col class="col-cost">
+    <col class="col-qty"><col class="col-total"><col class="col-notes"><col class="col-del">
+  </colgroup>
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th class="align-center">Status</th>
+      <th class="align-right">Unit Cost</th>
+      <th class="align-right">Qty</th>
+      <th class="align-right">Total</th>
+      <th>Notes</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="tableBody"></tbody>
+  <tfoot>
+    <tr>
+      <td colspan="4">Grand Total</td>
+      <td class="align-right" id="footTotal">$0.00</td>
+      <td colspan="2"></td>
+    </tr>
+  </tfoot>
+</table>
+ 
+<div class="footer-note">
+  Data is stored in this browser on this computer (it will still be here next time you open this file, even after restarting your computer). It will not follow you to a different browser or computer. Click "Save" any time for confirmation, and use "Export Backup" periodically to keep a portable copy — that's also how you'd move this data to another machine.
+</div>
+ 
+<div class="toast" id="toast">Saved</div>
+ 
+<script>
+const STORAGE_KEY = "capex_tracker_data_v2";
+ 
+// Seed data used only the first time this file is opened (no saved data yet)
+const seedRows = [
+  { item: "Mower", status: "spent", unitCost: 9236, qty: 1, notes: "", tbd: false },
+  { item: "Golf Cart (IPS)", status: "spent", unitCost: 7000, qty: 1, notes: "", tbd: false },
+  { item: "Golf Cart (Big Bear)", status: "planned", unitCost: 5500, qty: 1, notes: "", tbd: false },
+  { item: "Server", status: "planned", unitCost: 30100, qty: 1, notes: "", tbd: false },
+  { item: "Cyber Assurance", status: "planned", unitCost: 18000, qty: 1, notes: "", tbd: false },
+  { item: "Laptop", status: "planned", unitCost: 1600, qty: 1, notes: "Cost is per unit — set Qty to number of laptops", tbd: false },
+  { item: "Shop Cameras (IPS)", status: "planned", unitCost: 3700, qty: 1, notes: "", tbd: false },
+  { item: "Ground Control (Bison)", status: "planned", unitCost: 0, qty: 1, notes: "Needs pricing", tbd: true },
+  { item: "Ground Control (Bigfoot) – Rock", status: "planned", unitCost: 44.75, qty: 0, notes: "Per yard — set Qty to number of yards", tbd: true },
+  { item: "Ground Control (Bigfoot) – Asphalt", status: "planned", unitCost: 37, qty: 0, notes: "Per yard — set Qty to number of yards", tbd: true }
+];
+ 
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return { rows: parsed, savedAt: null };
+      if (parsed && Array.isArray(parsed.rows)) return parsed;
+    } catch (e) { /* fall through to seed */ }
+  }
+  return { rows: seedRows, savedAt: null };
+}
+ 
+let state = loadState();
+let data = state.rows;
+ 
+// Backward compatibility: older saved data may not have a "tbd" flag yet.
+// Derive a sensible default from the numbers so nothing breaks.
+data.forEach(row => {
+  if (typeof row.tbd !== "boolean") {
+    const t = (Number(row.unitCost) || 0) * (Number(row.qty) || 0);
+    row.tbd = row.status === "planned" && t === 0;
+  }
+});
+ 
+const tableBody = document.getElementById("tableBody");
+const savedStatus = document.getElementById("savedStatus");
+const lastSavedLine = document.getElementById("lastSavedLine");
+const toast = document.getElementById("toast");
+ 
+function money(n) {
+  n = Number(n) || 0;
+  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+ 
+function moneyPlain(n) {
+  n = Number(n) || 0;
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+ 
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove("show"), 1800);
+}
+ 
+function formatSavedTime(ts) {
+  if (!ts) return "Not saved yet";
+  const d = new Date(ts);
+  return "Last saved " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+         " at " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+ 
+function save(showConfirmation) {
+  const now = Date.now();
+  state = { rows: data, savedAt: now };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  lastSavedLine.textContent = formatSavedTime(now);
+  if (showConfirmation) showToast("All changes saved ✓");
+}
+ 
+function commitActiveEdit() {
+  if (document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+}
+ 
+function render() {
+  tableBody.innerHTML = "";
+  let tbdCount = 0;
+ 
+  data.forEach((row, idx) => {
+    const total = (Number(row.unitCost) || 0) * (Number(row.qty) || 0);
+    if (row.tbd) tbdCount++;
+ 
+    const tr = document.createElement("tr");
+    tr.className = row.status === "spent" ? "row-spent" : "row-planned";
+ 
+    tr.innerHTML = `
+      <td class="editable" contenteditable="true" data-field="item">${escapeHtml(row.item)}</td>
+      <td class="align-center">
+        <select class="status-select ${row.status}" data-field="status">
+          <option value="spent" ${row.status === "spent" ? "selected" : ""}>Spent</option>
+          <option value="planned" ${row.status === "planned" ? "selected" : ""}>Planned</option>
+        </select>
+      </td>
+      <td class="align-right cost-cell"><span class="currency-prefix">$</span><span class="editable" contenteditable="true" data-field="unitCost">${moneyPlain(row.unitCost)}</span></td>
+      <td class="align-right editable qty-cell" contenteditable="true" data-field="qty">${row.qty}</td>
+      <td class="align-right total-cell">${row.tbd ? '<span class="tbd-badge">TBD</span>' : money(total)}<button class="tbd-toggle-btn" data-idx="${idx}">${row.tbd ? "Mark priced" : "Mark TBD"}</button></td>
+      <td class="editable" contenteditable="true" data-field="notes">${escapeHtml(row.notes || "")}</td>
+      <td class="align-center"><button class="del-btn" title="Delete row">&times;</button></td>
+    `;
+ 
+    // Item / Notes — plain text fields
+    tr.querySelectorAll('td.editable[data-field="item"], td.editable[data-field="notes"]').forEach(cell => {
+      cell.addEventListener("blur", () => {
+        row[cell.dataset.field] = cell.textContent.trim();
+        save(false);
+      });
+    });
+ 
+    // Unit Cost — editable span inside the cell, reformats on blur
+    const costSpan = tr.querySelector('span.editable[data-field="unitCost"]');
+    costSpan.addEventListener("focus", () => {
+      costSpan.textContent = row.unitCost || 0;
+      selectAllText(costSpan);
+    });
+    costSpan.addEventListener("blur", () => {
+      const raw = costSpan.textContent.replace(/[^0-9.\-]/g, "");
+      row.unitCost = raw === "" ? 0 : parseFloat(raw);
+      costSpan.textContent = moneyPlain(row.unitCost);
+      save(false);
+      render();
+    });
+ 
+    // Qty
+    const qtyCell = tr.querySelector('td.editable[data-field="qty"]');
+    qtyCell.addEventListener("focus", () => selectAllText(qtyCell));
+    qtyCell.addEventListener("blur", () => {
+      const raw = qtyCell.textContent.replace(/[^0-9.\-]/g, "");
+      row.qty = raw === "" ? 0 : parseFloat(raw);
+      qtyCell.textContent = row.qty;
+      save(false);
+      render();
+    });
+ 
+    // Status dropdown
+    const select = tr.querySelector(".status-select");
+    select.addEventListener("change", () => {
+      row.status = select.value;
+      save(false);
+      render();
+    });
+ 
+    // TBD / priced toggle
+    const tbdBtn = tr.querySelector(".tbd-toggle-btn");
+    tbdBtn.addEventListener("click", () => {
+      row.tbd = !row.tbd;
+      save(false);
+      render();
+    });
+ 
+    // Delete
+    tr.querySelector(".del-btn").addEventListener("click", () => {
+      if (confirm(`Delete "${row.item}"?`)) {
+        data.splice(idx, 1);
+        save(false);
+        render();
+      }
+    });
+ 
+    tableBody.appendChild(tr);
+  });
+ 
+  updateTotals();
+  updateTbdWarning(tbdCount);
+}
+ 
+function selectAllText(el) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+ 
+function updateTotals() {
+  let spent = 0, planned = 0;
+  data.forEach(row => {
+    if (row.tbd) return; // excluded until priced
+    const t = (Number(row.unitCost) || 0) * (Number(row.qty) || 0);
+    if (row.status === "spent") spent += t; else planned += t;
+  });
+  document.getElementById("totalSpent").textContent = money(spent);
+  document.getElementById("totalPlanned").textContent = money(planned);
+  document.getElementById("totalAll").textContent = money(spent + planned);
+  document.getElementById("footTotal").textContent = money(spent + planned);
+}
+ 
+function updateTbdWarning(count) {
+  const banner = document.getElementById("tbdWarning");
+  if (count > 0) {
+    banner.textContent = `⚠ ${count} item${count > 1 ? "s" : ""} still need${count > 1 ? "" : "s"} pricing (marked TBD) and ${count > 1 ? "are" : "is"} not included in the totals above.`;
+    banner.classList.add("show");
+  } else {
+    banner.classList.remove("show");
+  }
+}
+ 
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+ 
+document.getElementById("saveBtn").addEventListener("click", () => {
+  commitActiveEdit();
+  save(true);
+});
+ 
+document.getElementById("addRowBtn").addEventListener("click", () => {
+  commitActiveEdit();
+  data.push({ item: "New Item", status: "planned", unitCost: 0, qty: 1, notes: "", tbd: false });
+  save(false);
+  render();
+  const rows = tableBody.querySelectorAll("tr");
+  const lastRow = rows[rows.length - 1];
+  if (lastRow) {
+    const firstCell = lastRow.querySelector("td.editable");
+    firstCell.focus();
+    selectAllText(firstCell);
+  }
+});
+ 
+document.getElementById("printBtn").addEventListener("click", () => {
+  commitActiveEdit();
+  window.print();
+});
+ 
+document.getElementById("exportCsvBtn").addEventListener("click", () => {
+  commitActiveEdit();
+  const header = ["Item", "Status", "Unit Cost", "Qty", "Total", "Notes"];
+  const rows = data.map(r => {
+    const total = (Number(r.unitCost) || 0) * (Number(r.qty) || 0);
+    return [r.item, r.status, r.unitCost, r.qty, r.tbd ? "TBD" : total.toFixed(2), r.notes || ""];
+  });
+  const csv = [header, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  downloadFile(csv, "capital_expenditures.csv", "text/csv");
+});
+ 
+document.getElementById("exportJsonBtn").addEventListener("click", () => {
+  commitActiveEdit();
+  downloadFile(JSON.stringify(data, null, 2), "capital_expenditures_backup.json", "application/json");
+});
+ 
+document.getElementById("importJsonBtn").addEventListener("click", () => {
+  document.getElementById("importFile").click();
+});
+ 
+document.getElementById("importFile").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const imported = JSON.parse(reader.result);
+      if (Array.isArray(imported)) {
+        if (confirm("Replace current data with the imported backup?")) {
+          data = imported;
+          save(true);
+          render();
+        }
+      } else {
+        alert("That file doesn't look like a valid backup.");
+      }
+    } catch (err) {
+      alert("Couldn't read that file as a backup.");
+    }
+    e.target.value = "";
+  };
+  reader.readAsText(file);
+});
+ 
+function downloadFile(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+ 
+lastSavedLine.textContent = formatSavedTime(state.savedAt);
+render();
+</script>
+ 
+</body>
+</html>
